@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
 const C=ReplicaCore,$=id=>{const element=document.getElementById(id);if(!element)throw new Error('Компонент '+id+' не найден. Откройте свежую сборку приложения целиком.');return element;};
-const state={document:null,groups:[],selected:new Set(),colors:new Map(),videoUrl:null,track:null,rows:new Map(),mode:'table',request:null,assignments:new Map(),lastUrl:null,timings:new Map(),invalidTimes:new Set(),cueEdits:new Map(),invalidEdits:new Set(),added:[],removed:new Set(),order:[],serial:0,lastRemoved:null,reordered:false};
+const state={document:null,groups:[],selected:new Set(),colors:new Map(),videoUrl:null,remoteVideo:false,embeddedVideo:false,driveLink:null,track:null,rows:new Map(),mode:'table',request:null,assignments:new Map(),lastUrl:null,timings:new Map(),invalidTimes:new Set(),cueEdits:new Map(),invalidEdits:new Set(),added:[],removed:new Set(),order:[],serial:0,lastRemoved:null,reordered:false};
 const notice=$('notice'),dialog=$('otherDialog'),player=$('player');
 function message(text,error=false){notice.textContent=text;notice.className='notice '+(error?'error':'success');}
 function report(error){const text=error.message||String(error);message(/Cannot |is not a function|is not defined/.test(text)?'Не удалось выполнить действие. Попробуйте ещё раз.':text,true);}
@@ -31,7 +31,7 @@ function renderCues(){
  const update=(final=false)=>{try{const base=baseCues().find(c=>c.id===cue.id),key=i===2?'actor':'text',value=i===2?field.value.trim():field.value,edit={...(state.cueEdits.get(cue.id)||{})};if(i===2&&/[\r\n,]/.test(value))throw new Error('В имени актёра нельзя использовать запятую или перенос строки.');if(value===base[key])delete edit[key];else edit[key]=value;C.applyCueEdits([base],new Map([[cue.id,edit]]));if(Object.keys(edit).length)state.cueEdits.set(cue.id,edit);else state.cueEdits.delete(cue.id);state.invalidEdits.delete(cue.id+':'+key);field.setAttribute('aria-invalid','false');if(i===2)state.selected.add(value);updateResetVisibility();updateTrack();$('jsonView').textContent=JSON.stringify(currentCues().map(({start,end,actor,text})=>({start:C.timestamp(start),end:C.timestamp(end),actor,text})),null,2);if(final&&i===2)renderActors(true);return true;}catch(error){state.invalidEdits.add(cue.id+':'+(i===2?'actor':'text'));field.setAttribute('aria-invalid','true');updateResetVisibility();if(final)message(error.message,true);return false;}};
  field.addEventListener('input',()=>update());field.addEventListener('change',()=>update(true));field.addEventListener('blur',()=>update(true));field.addEventListener('keydown',e=>{if(e.key==='Escape'){field.value=text;update(true);field.blur();}else if(i===2&&e.key==='Enter')field.blur();});row.append(field);
  }else{const span=document.createElement('span');span.className=i<2?'time':i===2?'actor':'line-text';span.textContent=text;row.append(span);}});
- const seek=()=>{if(!player.src)return;const actual=projectCues().find(c=>c.id===cue.id);player.currentTime=actual.start/1000;};row.addEventListener('click',e=>{if(!e.target.matches('input,textarea,button'))seek();});row.addEventListener('keydown',e=>{if(e.target===row&&(e.key==='Enter'||e.key===' ')){e.preventDefault();seek();}});if(state.mode==='edit'){const remove=document.createElement('button');remove.className='delete-cue';remove.textContent='×';remove.title='Удалить реплику';remove.setAttribute('aria-label','Удалить реплику '+cue.id);remove.addEventListener('click',()=>{state.removed.add(cue.id);state.lastRemoved=cue.id;renderActors(true);renderCues();});row.append(remove);}fragment.append(row);state.rows.set(cue.id,row);}
+ const seek=()=>{if(state.embeddedVideo){const actual=projectCues().find(c=>c.id===cue.id);$('drivePlayer').src=C.drivePreviewUrl(state.driveLink,actual.start/1000);return;}if(!player.src)return;const actual=projectCues().find(c=>c.id===cue.id);player.currentTime=actual.start/1000;};row.addEventListener('click',e=>{if(!e.target.matches('input,textarea,button'))seek();});row.addEventListener('keydown',e=>{if(e.target===row&&(e.key==='Enter'||e.key===' ')){e.preventDefault();seek();}});if(state.mode==='edit'){const remove=document.createElement('button');remove.className='delete-cue';remove.textContent='×';remove.title='Удалить реплику';remove.setAttribute('aria-label','Удалить реплику '+cue.id);remove.addEventListener('click',()=>{state.removed.add(cue.id);state.lastRemoved=cue.id;renderActors(true);renderCues();});row.append(remove);}fragment.append(row);state.rows.set(cue.id,row);}
 
  list.replaceChildren(fragment);$('jsonView').textContent=JSON.stringify(cues.map(({start,end,actor,text})=>({start:C.timestamp(start),end:C.timestamp(end),actor,text})),null,2);$('cueTotal').textContent=cues.length;$('visibleTotal').textContent=state.document?'В просмотре: '+cues.length+' из '+projectCues().length:'Нет реплик';$('emptyState').hidden=cues.length>0||state.mode==='json';$('chooseAll').checked=state.groups.every(g=>state.selected.has(g.name));$('chooseAll').indeterminate=state.selected.size>0&&state.selected.size<state.groups.length;
  for(const input of document.querySelectorAll('#groups input[type=checkbox]'))input.checked=state.selected.has(input.dataset.group);
@@ -78,8 +78,39 @@ $('loadDocs').addEventListener('click',async()=>{
 
  finally{clearTimeout(timeout);state.request=null;$('loadDocs').disabled=false;$('cancelDocs').hidden=true;}
 });
-function openVideo(file){if(!file)return;if(state.videoUrl)URL.revokeObjectURL(state.videoUrl);state.videoUrl=URL.createObjectURL(file);player.src=state.videoUrl;$('videoName').textContent=file.name;$('videoPlaceholder').hidden=true;if(!state.document)setMode('edit');player.play().catch(()=>{});}
-$('chooseVideo').addEventListener('click',()=>$('videoFile').click());$('videoPlaceholder').addEventListener('click',()=>$('videoFile').click());$('videoFile').addEventListener('change',e=>{openVideo(e.target.files[0]);e.target.value='';});player.addEventListener('error',()=>{if(player.src)message('Браузер не смог воспроизвести видео. Возможно, его кодек не поддерживается. Субтитры доступны для работы.',true);});
+function setVideoSource(url,name,remote=false){
+ state.embeddedVideo=false;state.driveLink=null;$('videoDrop').classList.remove('drive-embedded');$('drivePlayer').removeAttribute('src');$('drivePlayer').hidden=true;player.hidden=false;
+ if(state.videoUrl)URL.revokeObjectURL(state.videoUrl);state.videoUrl=remote?null:url;state.remoteVideo=remote;
+ player.pause();if(remote)player.setAttribute('crossorigin','anonymous');else player.removeAttribute('crossorigin');
+ player.preload='metadata';player.src=url;player.load();$('videoName').textContent=name;$('videoPlaceholder').hidden=true;if(!state.document)setMode('edit');if(!remote)player.play().catch(()=>{});
+}
+function openVideo(file){if(file)setVideoSource(URL.createObjectURL(file),file.name);}
+const videoDialog=$('videoDialog');
+$('openVideoOther').addEventListener('click',()=>{$('videoLinkNotice').textContent='';videoDialog.showModal();});
+$('useReplicaPlayer').addEventListener('change',()=>{$('driveApiSettings').hidden=!$('useReplicaPlayer').checked;});
+$('openVideoLink').addEventListener('click',()=>{try{
+ const link=$('videoLink').value.trim();
+ if($('useReplicaPlayer').checked){setVideoSource(C.driveVideoUrl(link,$('driveApiKey').value),'Google Drive',true);message('Подключение видео…');}
+ else{const url=C.drivePreviewUrl(link);state.embeddedVideo=true;state.driveLink=link;$('videoDrop').classList.add('drive-embedded');state.remoteVideo=false;player.pause();player.removeAttribute('src');player.load();player.hidden=true;if(state.videoUrl)URL.revokeObjectURL(state.videoUrl);state.videoUrl=null;$('drivePlayer').src=url;$('drivePlayer').hidden=false;$('videoPlaceholder').hidden=true;$('videoName').textContent='Google Drive';if(!state.document)setMode('edit');fitWideVideo();message('');}
+ videoDialog.close();
+ }catch(error){$('videoLinkNotice').textContent=error.message;}});
+player.addEventListener('loadedmetadata',()=>{if(state.remoteVideo)message('');});
+
+function fitWideVideo(){
+ const stage=$('videoDrop');
+ if(!document.body.classList.contains('wide-video')){stage.style.removeProperty('width');stage.style.removeProperty('height');return;}
+ const viewer=document.querySelector('.viewer'),controls=['.video-bar','.viewer-head','.tabs','.table-head','.viewer-foot'].reduce((sum,selector)=>sum+document.querySelector(selector).getBoundingClientRect().height,0);
+ const availableHeight=Math.max(0,viewer.clientHeight-controls-Math.min(state.embeddedVideo?120:200,viewer.clientHeight*.3));
+ const ratio=!state.embeddedVideo&&player.videoWidth&&player.videoHeight?player.videoWidth/player.videoHeight:16/9;
+ const width=Math.min(viewer.clientWidth,availableHeight*ratio);
+ stage.style.width=width+'px';stage.style.height=(width/ratio)+'px';
+}
+$('wideVideo').addEventListener('click',()=>{const wide=document.body.classList.toggle('wide-video');$('wideVideo').setAttribute('aria-pressed',String(wide));$('wideVideo').textContent=wide?'Обычное окно':'Широкое окно';fitWideVideo();});
+player.addEventListener('loadedmetadata',fitWideVideo);
+window.addEventListener('resize',fitWideVideo);
+if(typeof ResizeObserver!=='undefined'){const observer=new ResizeObserver(fitWideVideo);for(const selector of ['.viewer','.video-bar','.viewer-head','.tabs','.table-head','.viewer-foot'])observer.observe(document.querySelector(selector));}
+
+$('chooseVideo').addEventListener('click',()=>$('videoFile').click());$('videoPlaceholder').addEventListener('click',()=>$('videoFile').click());$('videoFile').addEventListener('change',e=>{openVideo(e.target.files[0]);e.target.value='';});player.addEventListener('error',()=>{if(player.src)message(state.remoteVideo?'Не удалось подключить видео. Проверьте ключ Drive API и доступ к файлу.':'Не удалось воспроизвести видео. Возможно, его кодек не поддерживается.',true);});
 function dropOn(id,handler){const target=$(id);target.addEventListener('dragover',e=>{e.preventDefault();target.classList.add('drag-over');});for(const event of ['dragleave','drop'])target.addEventListener(event,e=>{e.preventDefault();target.classList.remove('drag-over');if(event==='drop')handler(e.dataTransfer.files[0]);});}
 dropOn('documentDrop',importFile);dropOn('videoDrop',openVideo);
 $('resetTimings').addEventListener('click',()=>{state.timings.clear();state.cueEdits.clear();state.added=[];state.removed.clear();state.order=state.document.cues.map(c=>c.id);state.lastRemoved=null;state.reordered=false;renderActors();renderCues();message('Правки реплик сброшены. Назначения актёров сохранены.');});

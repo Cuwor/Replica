@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="description" content="Локальная работа с субтитрами: актёры, видео, текст и экспорт."><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src blob:; img-src data:; connect-src https://docs.google.com https://*.googleusercontent.com; base-uri 'none'; object-src 'none'; form-action 'none'"><title>Реплика — редактор</title><link rel="stylesheet" href="styles.css?v=20261109-new1"></head>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="description" content="Локальная работа с субтитрами: актёры, видео, текст и экспорт."><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src blob: https://www.googleapis.com https://*.googleusercontent.com; img-src data:; connect-src https://docs.google.com https://*.googleusercontent.com; frame-src https://drive.google.com; base-uri 'none'; object-src 'none'; form-action 'none'"><title>Реплика — редактор</title><link rel="stylesheet" href="styles.css?v=20261109-release1"></head>
 <body>
 <header class="header"><h1>Реплика</h1><span>Субтитры под рукой</span></header>
 <div id="notice" class="notice" role="status"></div>
@@ -16,8 +16,8 @@
 
 </aside>
 <section class="viewer panel" aria-label="Видео и реплики">
-<div class="video-bar"><h2>Видео</h2><span id="videoName" class="muted">Для сверки с субтитрами</span><button id="chooseVideo">Открыть видео</button><input type="file" id="videoFile" accept="video/*,.mkv" hidden></div>
-<div class="video-stage" id="videoDrop"><video id="player" controls playsinline aria-label="Видео с субтитрами"></video><button class="video-placeholder" id="videoPlaceholder">Открыть или перетащить видео</button></div>
+<div class="video-bar"><h2>Видео</h2><span id="videoName" class="muted">Для сверки с субтитрами</span><button id="wideVideo" aria-pressed="false">Широкое окно</button><button id="chooseVideo">Открыть видео</button><button id="openVideoOther">GDrive Beta</button><input type="file" id="videoFile" accept="video/*,.mkv" hidden></div>
+<div class="video-stage" id="videoDrop"><video id="player" controls playsinline aria-label="Видео с субтитрами"></video><iframe id="drivePlayer" title="Видео Google Drive" allow="fullscreen" referrerpolicy="no-referrer" hidden></iframe><button class="video-placeholder" id="videoPlaceholder">Открыть или перетащить видео</button></div>
 <div class="viewer-head"><div><h2>Реплики <span id="cueTotal" class="muted">0</span></h2></div><div class="downloads"><button id="downloadAss" disabled>Скачать ASS</button><button id="downloadSrt" class="primary" disabled>Скачать SRT</button><button id="downloadCsv" disabled>Скачать CSV</button></div></div>
 <nav class="tabs" aria-label="Вид реплик"><button id="viewTable" class="active" aria-pressed="true">Просмотр</button><button id="viewEdit" aria-pressed="false">Правка</button><button id="viewJson" aria-pressed="false">JSON</button><div id="editActions" class="edit-actions" hidden><button id="addCue">Добавить реплику</button><button id="sortCues">Сортировать по началу</button><button id="undoDelete" hidden>Отменить удаление</button><button id="resetTimings" class="reset-action" hidden>Сбросить правки</button></div></nav>
 <div class="table-head" aria-hidden="true"><span>Начало</span><span>Конец</span><span>Актёр / группа</span><span>Текст реплики</span></div>
@@ -33,6 +33,13 @@
 <p class="hint">Без времени конца: +4 секунды, пересечения сокращаются. Готовые ASS / SSA / SRT / VTT сохраняют интервалы. Замена конца — только по вашей отметке выше.</p>
 <div id="dialogNotice" class="dialog-notice" role="status"></div><div class="dialog-actions"><button id="openPasted" class="primary">Открыть текст</button><label class="file-button">Открыть файл<input id="dialogFile" type="file" accept=".ass,.ssa,.srt,.vtt,.txt,.csv" hidden></label></div>
 </div></dialog>
+<dialog id="videoDialog" aria-labelledby="videoDialogTitle"><form method="dialog" class="dialog-heading"><h2 id="videoDialogTitle">GDrive Beta</h2><button value="cancel" aria-label="Закрыть видео по ссылке">×</button></form><div class="dialog-content">
+<label class="field-label" for="videoLink">Ссылка на Google Drive</label><div class="docs-row"><input id="videoLink" type="url" placeholder="https://drive.google.com/file/d/…"><button id="openVideoLink" class="primary">Открыть</button></div>
+<p class="hint">Субтитры приложения поверх видео не отображаются.</p><p class="hint">Нажатие на реплику заново открывает видео на нужной секунде. Для продолжения нажмите ▶.</p>
+<label class="check drive-player-option"><input id="useReplicaPlayer" type="checkbox">Использовать плеер «Реплики»</label><div id="driveApiSettings" hidden>
+<label class="field-label" for="driveApiKey">Ключ Google Drive API</label><input id="driveApiKey" type="password" autocomplete="off" spellcheck="false"><p class="hint">Ключ передаётся только Google и не сохраняется после закрытия страницы. <a href="https://developers.google.com/workspace/guides/create-credentials#api-key" target="_blank" rel="noopener noreferrer">Настройка Drive API</a></p>
+</div>
+<div id="videoLinkNotice" class="dialog-notice" role="status"></div></div></dialog>
 <dialog id="assignmentDialog" aria-labelledby="assignmentTitle"><form method="dialog" class="dialog-heading"><h2 id="assignmentTitle">Назначить актёра</h2><button value="cancel" aria-label="Закрыть назначения">×</button></form><div class="dialog-content">
 <p class="hint">Отметьте персонажей и укажите исполнителя. Чтобы сменить актёра целиком, выберите его исходное имя.</p>
 <label class="field-label" for="characterSearch">Персонажи / исходные имена</label><input id="characterSearch" type="search" placeholder="Найти персонажа, например м13">
@@ -40,5 +47,5 @@
 <label class="field-label" for="assignmentActor">Назначить актёру</label><input id="assignmentActor" list="actorSuggestions" placeholder="Имя актёра, например @Cuwor"><datalist id="actorSuggestions"></datalist>
 <label class="check assignment-keep"><input id="keepCharacterNames" type="checkbox" checked>Оставить имена персонажей в субтитрах</label><p class="hint">С галочкой: [Персонаж] Текст, актёр — отдельно. Без галочки: заменить актёра целиком, без добавления подписи.</p>
 <div id="assignmentNotice" class="dialog-notice" role="status"></div><div class="dialog-actions"><button id="applyAssignment" class="primary">Применить назначение</button><button id="removeAssignment">Снять назначение</button></div></div></dialog>
-<script src="core.js?v=20261109-new1"></script><script src="app.js?v=20261109-new1"></script>
+<script src="core.js?v=20261109-release1"></script><script src="app.js?v=20261109-release1"></script>
 </body></html>

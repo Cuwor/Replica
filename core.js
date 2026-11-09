@@ -130,6 +130,21 @@ function ass(document,cues=document.cues){
  return header+cues.map(c=>'Dialogue: 0,'+timestamp(c.start,'ass')+','+timestamp(c.end,'ass')+',Default,'+c.actor.replace(/,/g,';')+',0,0,0,,'+c.text.replace(/\r?\n/g,'\\N')).join('\n')+'\n';
 }
 
+function driveVideoLink(value){
+ let url;try{url=new URL(value);}catch{throw new Error('Вставьте ссылку на видео в Google Drive.');}
+ if(url.protocol!=='https:'||url.hostname!=='drive.google.com'||url.username||url.password||url.port)throw new Error('Нужна ссылка https://drive.google.com/file/d/…');
+ const id=url.pathname.match(/^\/file\/(?:u\/\d+\/)?d\/([\w-]+)(?:\/|$)/)?.[1]||(/^\/(?:open|uc)$/.test(url.pathname)?url.searchParams.get('id'):null);
+ if(!id||!/^[-\w]{10,200}$/.test(id))throw new Error('Не удалось найти файл в ссылке Google Drive.');
+ return {id,key:url.searchParams.get('resourcekey')};
+}
+function drivePreviewUrl(value,seconds){const {id,key}=driveVideoLink(value);const out=new URL('https://drive.google.com/file/d/'+id+'/preview');if(key&&/^[-\w]{1,200}$/.test(key))out.searchParams.set('resourcekey',key);if(seconds!==undefined){if(!Number.isFinite(seconds)||seconds<0)throw new Error('Неверное время видео.');out.searchParams.set('t',String(Math.floor(seconds)));}return out.href;}
+function driveVideoUrl(value,apiKey){
+ const {id,key}=driveVideoLink(value);
+ if(!apiKey||!/^[-\w]{20,200}$/.test(apiKey.trim()))throw new Error('Введите ключ Google Drive API для подключения видео.');
+ const out=new URL('https://www.googleapis.com/drive/v3/files/'+id);out.searchParams.set('alt','media');out.searchParams.set('key',apiKey.trim());
+ if(key&&/^[-\w]{1,200}$/.test(key))out.searchParams.set('resourcekey',key);
+ return out.href;
+}
 function googleUrl(value){
  let url;try{url=new URL(value);}catch{throw new Error('Вставьте полную ссылку на Google Docs.');}
  if(url.protocol!=='https:'||url.hostname!=='docs.google.com'||url.username||url.password||url.port)throw new Error('Поддерживаются ссылки https://docs.google.com/document/d/…');
@@ -149,6 +164,6 @@ function fromRegions(source,mode='time',duration=4){
  const cues=[],warnings=[];rows.forEach((r,i)=>{try{const start=parseValue(r[startCol]),end=endCol>=0&&r[endCol]?.trim()?parseValue(r[endCol]):start+duration*1000;if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<start)throw new Error('Неверный интервал');cues.push({id:'r'+i,start,end,actor:actorCol>=0?r[actorCol]||'':'',text:r[textCol>=0?textCol:nameCol]||'',color:colorCol>=0&&/^#?[0-9a-f]{6}$/i.test(r[colorCol]?.trim())?'#'+r[colorCol].trim().replace(/^#/,''):''});}catch(e){warnings.push('Строка '+(i+2)+': '+e.message);}});
  if(!cues.length)throw new Error('В CSV нет подходящих регионов.');return {kind:'regions',format:'CSV',name:'regions.csv',cues,warnings};
 }
-const api={milliseconds,timestamp,actors,actorKey,containsActor,actorIndex,parseAss,parseTimed,readDocument,openSource,fromText,applyAssignments,applyTimings,applyCueEdits,srt,vtt,ass,googleUrl,regions,csv,fromRegions,displayText};
+const api={milliseconds,timestamp,actors,actorKey,containsActor,actorIndex,parseAss,parseTimed,readDocument,openSource,fromText,applyAssignments,applyTimings,applyCueEdits,srt,vtt,ass,googleUrl,driveVideoUrl,drivePreviewUrl,regions,csv,fromRegions,displayText};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else scope.ReplicaCore=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
