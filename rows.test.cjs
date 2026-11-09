@@ -1,0 +1,17 @@
+const assert=require('node:assert/strict'),C=require('./core.js');
+const source='[Script Info]\r\nTitle: Keep\r\n[V4+ Styles]\r\nFormat: Name, Fontname\r\nStyle: Custom,Arial\r\n[Events]\r\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\r\nDialogue: 2,0:00:03.00,0:00:09.00,Custom,Cuwor,10,20,30,,{\\i1}Позже\r\nComment: 0,0:00:00.00,0:00:01.00,Custom,,0,0,0,,Keep comment\r\nDialogue: 0,0:00:01.00,0:00:07.00,Custom,Статист м13,0,0,0,,Раньше\r\n';
+const doc=C.parseAss(source),fresh={id:'new1',start:500,end:4500,actor:'Cuwor',text:'Добавлено\nДве строки'};
+assert.equal(C.ass(doc),source);
+assert.equal(C.ass(doc,[doc.cues[1]]),source.replace(doc.lines[doc.cues[0].line]+'\r\n',''));
+let out=C.ass(doc,[...doc.cues,fresh]),parsed=C.parseAss(out);
+assert.deepEqual(parsed.cues.map(({start,end,actor,text})=>({start,end,actor,text})),[...doc.cues,fresh].map(({start,end,actor,text})=>({start,end,actor,text})));
+assert.ok(out.includes('Style: Custom,Arial'));assert.ok(out.includes('Keep comment'));assert.ok(out.includes('Custom,Cuwor,10,20,30,,Добавлено\\NДве строки'));
+const sorted=[...doc.cues,fresh].sort((a,b)=>a.start-b.start);out=C.ass(doc,sorted);parsed=C.parseAss(out);
+assert.deepEqual(parsed.cues.map(c=>[c.start,c.end]),[[500,4500],[1000,7000],[3000,9000]]);
+assert.ok(out.includes(doc.lines[doc.cues[0].line]));assert.ok(out.includes(doc.lines[doc.cues[1].line]));assert.ok(out.includes('Keep comment'));assert.equal(C.ass(doc),source);
+const edited=C.applyCueEdits(C.applyTimings([fresh],new Map([['new1',{start:200,end:800}]])),new Map([['new1',{actor:'Статист м13',text:'Изменено'}]]));
+parsed=C.parseAss(C.ass(doc,edited));assert.deepEqual(parsed.cues.map(c=>[c.start,c.end,c.actor,c.text]),[[200,800,'Статист м13','Изменено']]);
+const ssa=C.parseAss('[Script Info]\nScriptType: v4.00\n[Events]\nFormat: Marked, Start, End, Style, Actor, MarginL, MarginR, MarginV, Effect, Text\nDialogue: Marked=0,0:00:03.00,0:00:09.00,Default,Cuwor,0,0,0,,Исходная\n');
+parsed=C.parseAss(C.ass(ssa,[fresh,...ssa.cues]));assert.equal(parsed.cues[0].actor,'Cuwor');assert.equal(parsed.cues[0].text,fresh.text);assert.equal(parsed.cues[1].end,9000);
+assert.ok(!/^Dialogue:/m.test(C.ass(doc,[])));
+console.log('PASS add, delete and explicit sort: ASS/SSA fields, source, comments, styles, overlaps and new cue edits preserved');

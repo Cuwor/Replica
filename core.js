@@ -95,6 +95,7 @@ function fromText(source,options={}) {
  return {kind:'text',name:'replicas.ass',cues:valid,warnings,clipped};
 }
 function openSource(source,name,options={}) {
+ if(/\.csv$/i.test(name||''))return {...fromRegions(source),name};
  if(/\[Events\]/i.test(source))return parseAss(source,name);
  if(new RegExp('^\\s*'+clockPattern+'\\s*-->','m').test(source)&&!options.forceDuration)return parseTimed(source,name);
  return {...fromText(source,options),name:name||'replicas.ass'};
@@ -120,16 +121,15 @@ function vtt(cues){return 'WEBVTT\n\n'+cues.map(c=>`${timestamp(c.start,'vtt')} 
 function ass(document,cues=document.cues){
  if(document.kind==='ass'){
   if(cues.length===document.cues.length&&cues.every((c,i)=>c.id===document.cues[i].id&&!c.assigned&&!c.timingEdited&&!c.actorEdited&&!c.textEdited))return document.source;
-  const chosen=new Set(cues.map(c=>c.id)),validLines=new Map(document.cues.map(c=>[c.line,c.id]));
-  const byLine=new Map(cues.map(c=>[c.line,c]));const dialogue=new Set(document.dialogueLines);return document.lines.flatMap((line,i)=>{
-   if(!dialogue.has(i))return [line];if(!chosen.has(validLines.get(i)))return [];const cue=byLine.get(i);if(!cue?.assigned&&!cue?.timingEdited&&!cue?.actorEdited&&!cue?.textEdited)return [line];
-   const values=[...cue.sourceFields];if(cue.assigned||cue.actorEdited)for(const column of cue.actorColumns){const old=values[column];values[column]=(old.match(/^\s*/)?.[0]||'')+cue.actor+(old.match(/\s*$/)?.[0]||'');}if(cue.textEdited)values[values.length-1]=cue.editedRawText;else if(cue.assigned)values[values.length-1]=cue.assignedRawText;if(cue.timingEdited){for(const key of ['start','end']){const column=cue.timeColumns[key],old=values[column];values[column]=(old.match(/^\s*/)?.[0]||'')+timestamp(cue[key],'ass')+(old.match(/\s*$/)?.[0]||'');}}
-   return [line.slice(0,line.indexOf(':')+1)+values.join(',')];
-  }).join(document.eol);
+  const template=document.cues[0];
+  const encode=cue=>{const fresh=cue.line===undefined,base=fresh?template:cue;if(!fresh&&!cue.assigned&&!cue.timingEdited&&!cue.actorEdited&&!cue.textEdited)return document.lines[cue.line];const values=[...base.sourceFields];if(fresh||cue.assigned||cue.actorEdited)for(const column of base.actorColumns){const old=values[column];values[column]=(old.match(/^\s*/)?.[0]||'')+cue.actor+(old.match(/\s*$/)?.[0]||'');}if(cue.textEdited)values[values.length-1]=cue.editedRawText;else if(cue.assigned)values[values.length-1]=cue.assignedRawText;else if(fresh)values[values.length-1]=cue.text.replace(/\r?\n/g,'\\N');if(fresh||cue.timingEdited)for(const key of ['start','end']){const column=base.timeColumns[key],old=values[column];values[column]=(old.match(/^\s*/)?.[0]||'')+timestamp(cue[key],'ass')+(old.match(/\s*$/)?.[0]||'');}const original=document.lines[base.line];return original.slice(0,original.indexOf(':')+1)+values.join(',');};
+  const chosen=new Map(cues.map(c=>[c.id,c])),originalOrder=document.cues.filter(c=>chosen.has(c.id)).map(c=>c.id),reflow=cues.some(c=>c.line===undefined)||cues.some((c,i)=>c.id!==originalOrder[i]);const byLine=new Map(document.cues.map(c=>[c.line,c.id])),dialogue=new Set(document.dialogueLines),last=Math.max(...document.dialogueLines);let next=0;
+  return document.lines.flatMap((line,i)=>{if(!dialogue.has(i))return [line];if(!reflow){const cue=chosen.get(byLine.get(i));return cue?[encode(cue)]:[];}const result=next<cues.length?[encode(cues[next++])]:[];if(i===last)while(next<cues.length)result.push(encode(cues[next++]));return result;}).join(document.eol);
  }
  const header='[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,Arial,48,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,0,2,30,30,30,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n';
  return header+cues.map(c=>'Dialogue: 0,'+timestamp(c.start,'ass')+','+timestamp(c.end,'ass')+',Default,'+c.actor.replace(/,/g,';')+',0,0,0,,'+c.text.replace(/\r?\n/g,'\\N')).join('\n')+'\n';
 }
+
 function googleUrl(value){
  let url;try{url=new URL(value);}catch{throw new Error('Вставьте полную ссылку на Google Docs.');}
  if(url.protocol!=='https:'||url.hostname!=='docs.google.com'||url.username||url.password||url.port)throw new Error('Поддерживаются ссылки https://docs.google.com/document/d/…');
@@ -138,16 +138,17 @@ function googleUrl(value){
 }
 const csvCell=value=>'"'+String(value).replace(/"/g,'""')+'"';
 function regions(cues){return '#,Name,Start,End,Length,Color\r\n'+cues.map((c,i)=>['R'+(i+1),csvCell(c.text.replace(/\n/g,' ')),timestamp(c.start,'vtt'),timestamp(c.end,'vtt'),timestamp(c.end-c.start,'vtt'),''].join(',')).join('\r\n')+'\r\n';}
+function csv(cues,getColor=()=> ''){return '#,Name,Start,End,Length,Color,Actor\r\n'+cues.map((c,i)=>['R'+(i+1),csvCell(c.text),timestamp(c.start,'vtt'),timestamp(c.end,'vtt'),timestamp(c.end-c.start,'vtt'),String(getColor(c.actor)||c.color||'').replace(/^#/,''),csvCell(c.actor)].join(',')).join('\r\n')+'\r\n';}
 function csvRows(text){
  const rows=[];let row=[],cell='',quoted=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'){if(quoted&&text[i+1]==='"'){cell+='"';i++;}else quoted=!quoted;}else if(c===','&&!quoted){row.push(cell);cell='';}else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell);if(row.some(x=>x.trim()))rows.push(row);row=[];cell='';}else cell+=c;}if(quoted)throw new Error('Незакрытая кавычка в CSV');row.push(cell);if(row.some(x=>x.trim()))rows.push(row);return rows;
 }
 function fromRegions(source,mode='time',duration=4){
- const rows=csvRows(source.replace(/^\uFEFF/,'')),header=rows.shift()?.map(x=>x.trim().toLowerCase())||[];const startCol=header.indexOf('start'),endCol=header.indexOf('end'),nameCol=header.indexOf('name');
- if(startCol<0||nameCol<0)throw new Error('CSV должен содержать столбцы Name и Start.');
+ const rows=csvRows(source.replace(/^\uFEFF/,'')),header=rows.shift()?.map(x=>x.trim().toLowerCase())||[];const startCol=header.indexOf('start'),endCol=header.indexOf('end'),nameCol=header.indexOf('name'),textCol=header.indexOf('text'),actorCol=header.indexOf('actor'),colorCol=header.indexOf('color');
+ if(startCol<0||(nameCol<0&&textCol<0))throw new Error('CSV должен содержать Start и Name или Text.');
  const parseValue=value=>{const s=String(value).trim();if(mode==='beats'){const m=s.match(/^(\d+)\.(\d+)(?:\.(\d+))?$/);if(!m)throw new Error('Ожидается такт.доля.сотые при 120 BPM');return Math.round(((Number(m[1])-1)*4+(Number(m[2])-1)+Number('0.'+(m[3]||'0')))*500);}return s.includes(':')?milliseconds(s):Math.round(Number(s)*1000);};
- const cues=[],warnings=[];rows.forEach((r,i)=>{try{const start=parseValue(r[startCol]),end=endCol>=0&&r[endCol]?.trim()?parseValue(r[endCol]):start+duration*1000;if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<=start)throw new Error('Неверный интервал');cues.push({id:'r'+i,start,end,actor:'',text:r[nameCol]||''});}catch(e){warnings.push('Строка '+(i+2)+': '+e.message);}});
- if(!cues.length)throw new Error('В CSV нет подходящих регионов.');return {kind:'regions',name:'regions.ass',cues,warnings};
+ const cues=[],warnings=[];rows.forEach((r,i)=>{try{const start=parseValue(r[startCol]),end=endCol>=0&&r[endCol]?.trim()?parseValue(r[endCol]):start+duration*1000;if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<start)throw new Error('Неверный интервал');cues.push({id:'r'+i,start,end,actor:actorCol>=0?r[actorCol]||'':'',text:r[textCol>=0?textCol:nameCol]||'',color:colorCol>=0&&/^#?[0-9a-f]{6}$/i.test(r[colorCol]?.trim())?'#'+r[colorCol].trim().replace(/^#/,''):''});}catch(e){warnings.push('Строка '+(i+2)+': '+e.message);}});
+ if(!cues.length)throw new Error('В CSV нет подходящих регионов.');return {kind:'regions',format:'CSV',name:'regions.csv',cues,warnings};
 }
-const api={milliseconds,timestamp,actors,actorKey,containsActor,actorIndex,parseAss,parseTimed,readDocument,openSource,fromText,applyAssignments,applyTimings,applyCueEdits,srt,vtt,ass,googleUrl,regions,fromRegions,displayText};
+const api={milliseconds,timestamp,actors,actorKey,containsActor,actorIndex,parseAss,parseTimed,readDocument,openSource,fromText,applyAssignments,applyTimings,applyCueEdits,srt,vtt,ass,googleUrl,regions,csv,fromRegions,displayText};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else scope.ReplicaCore=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

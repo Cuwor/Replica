@@ -1,13 +1,13 @@
 <!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="description" content="Локальная работа с субтитрами: актёры, видео, текст и экспорт."><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src blob:; img-src data:; connect-src https://docs.google.com https://*.googleusercontent.com; base-uri 'none'; object-src 'none'; form-action 'none'"><title>Реплика — редактор</title><link rel="stylesheet" href="styles.css"></head>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="description" content="Локальная работа с субтитрами: актёры, видео, текст и экспорт."><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src blob:; img-src data:; connect-src https://docs.google.com https://*.googleusercontent.com; base-uri 'none'; object-src 'none'; form-action 'none'"><title>Реплика — редактор</title><link rel="stylesheet" href="styles.css?v=20261109-rows1"></head>
 <body>
 <header class="header"><h1>Реплика</h1><span>Субтитры под рукой</span></header>
 <div id="notice" class="notice" role="status"></div>
 <main class="workspace">
 <aside class="sidebar panel" aria-label="Файл и актёры">
-<div class="section-head"><h2>Рабочий файл</h2><span id="kind" class="muted">ASS / SSA / SRT / VTT / TXT</span></div>
+<div class="section-head"><h2>Рабочий файл</h2><span id="kind" class="muted">ASS / SSA / SRT / VTT / TXT / CSV</span></div>
 <div class="file-row"><span id="filename">Файл не выбран</span><button id="openOther">Открыть иначе</button></div>
-<label class="file-drop" id="documentDrop" for="documentFile"><span>Открыть или перетащить файл</span><small>ASS · SSA · SRT · VTT · TXT</small></label><input type="file" id="documentFile" accept=".ass,.ssa,.srt,.vtt,.txt" hidden>
+<label class="file-drop" id="documentDrop" for="documentFile"><span>Открыть или перетащить файл</span><small>ASS · SSA · SRT · VTT · TXT · CSV</small></label><input type="file" id="documentFile" accept=".ass,.ssa,.srt,.vtt,.txt,.csv" hidden>
 <div class="section-head actors-head"><h2>Актёры</h2><div class="actor-heading-actions"><span id="actorTotal" class="muted">0</span></div></div>
 <button id="openAssignments" class="primary assign-main" disabled>Назначить / сменить актёра</button><div id="actorControls" hidden><label class="sr-only" for="actorSelect">Актёр</label><select id="actorSelect"><option value="">Выберите актёра</option></select><button id="chooseActor" class="actor-button">Выбрать все его реплики</button><p class="hint">Включая совместные строки с другими актёрами.</p>
 <label class="check all"><input type="checkbox" id="chooseAll" checked>Выбрать всех</label><div id="groups" class="groups"></div></div>
@@ -18,8 +18,8 @@
 <section class="viewer panel" aria-label="Видео и реплики">
 <div class="video-bar"><h2>Видео</h2><span id="videoName" class="muted">Для сверки с субтитрами</span><button id="chooseVideo">Открыть видео</button><input type="file" id="videoFile" accept="video/*,.mkv" hidden></div>
 <div class="video-stage" id="videoDrop"><video id="player" controls playsinline aria-label="Видео с субтитрами"></video><button class="video-placeholder" id="videoPlaceholder">Открыть или перетащить видео</button></div>
-<div class="viewer-head"><div><h2>Реплики <span id="cueTotal" class="muted">0</span></h2></div><div class="downloads"><button id="downloadAss" disabled>Скачать ASS</button><button id="downloadSrt" class="primary" disabled>Скачать SRT</button><button id="downloadCsv" disabled>CSV Reaper</button></div></div>
-<nav class="tabs" aria-label="Вид реплик"><button id="viewTable" class="active" aria-pressed="true">Просмотр</button><button id="viewEdit" aria-pressed="false">Правка</button><button id="viewJson" aria-pressed="false">JSON</button><button id="resetTimings" class="reset-action" hidden>Сбросить правки</button></nav>
+<div class="viewer-head"><div><h2>Реплики <span id="cueTotal" class="muted">0</span></h2></div><div class="downloads"><button id="downloadAss" disabled>Скачать ASS</button><button id="downloadSrt" class="primary" disabled>Скачать SRT</button><button id="downloadCsv" disabled>Скачать CSV</button></div></div>
+<nav class="tabs" aria-label="Вид реплик"><button id="viewTable" class="active" aria-pressed="true">Просмотр</button><button id="viewEdit" aria-pressed="false">Правка</button><button id="viewJson" aria-pressed="false">JSON</button><div id="editActions" class="edit-actions" hidden><button id="addCue">Добавить реплику</button><button id="sortCues">Сортировать по началу</button><button id="undoDelete" hidden>Отменить удаление</button><button id="resetTimings" class="reset-action" hidden>Сбросить правки</button></div></nav>
 <div class="table-head" aria-hidden="true"><span>Начало</span><span>Конец</span><span>Актёр / группа</span><span>Текст реплики</span></div>
 <div class="cue-scroll" id="cueScroll"><div id="cueList"></div><pre id="jsonView" hidden></pre><div id="emptyState" class="empty"><h3>Место для ваших реплик</h3><p>Перетащите файл слева<br>или нажмите «Открыть иначе».</p></div></div>
 <footer class="viewer-foot"><span id="visibleTotal">Нет реплик</span><a id="lastDownload" hidden>Скачать файл ещё раз</a></footer>
@@ -31,7 +31,7 @@
 <label class="field-label" for="pastedText">Или вставьте текст / содержимое субтитров</label><textarea id="pastedText" placeholder="00:12 Персонаж: Реплика&#10;00:18 Следующая реплика" spellcheck="false"></textarea>
 <details class="text-settings"><summary>Настройки создания реплик из текста</summary><div class="settings"><label>Длительность <input id="textDuration" type="number" min="0.01" step="0.1" value="4"> сек.</label><label class="check"><input id="extractActors" type="checkbox" checked>Выделять имя перед двоеточием</label><label class="check"><input id="replaceEnds" type="checkbox">Заменять указанное время конца</label></div></details>
 <p class="hint">Без времени конца: +4 секунды, пересечения сокращаются. Готовые ASS / SSA / SRT / VTT сохраняют интервалы. Замена конца — только по вашей отметке выше.</p>
-<div id="dialogNotice" class="dialog-notice" role="status"></div><div class="dialog-actions"><button id="openPasted" class="primary">Открыть текст</button><label class="file-button">Открыть файл<input id="dialogFile" type="file" accept=".ass,.ssa,.srt,.vtt,.txt" hidden></label></div>
+<div id="dialogNotice" class="dialog-notice" role="status"></div><div class="dialog-actions"><button id="openPasted" class="primary">Открыть текст</button><label class="file-button">Открыть файл<input id="dialogFile" type="file" accept=".ass,.ssa,.srt,.vtt,.txt,.csv" hidden></label></div>
 </div></dialog>
 <dialog id="assignmentDialog" aria-labelledby="assignmentTitle"><form method="dialog" class="dialog-heading"><h2 id="assignmentTitle">Назначить актёра</h2><button value="cancel" aria-label="Закрыть назначения">×</button></form><div class="dialog-content">
 <p class="hint">Отметьте персонажей и укажите исполнителя. Чтобы сменить актёра целиком, выберите его исходное имя.</p>
@@ -40,5 +40,5 @@
 <label class="field-label" for="assignmentActor">Назначить актёру</label><input id="assignmentActor" list="actorSuggestions" placeholder="Имя актёра, например @Cuwor"><datalist id="actorSuggestions"></datalist>
 <label class="check assignment-keep"><input id="keepCharacterNames" type="checkbox" checked>Оставить имена персонажей в субтитрах</label><p class="hint">С галочкой: [Персонаж] Текст, актёр — отдельно. Без галочки: заменить актёра целиком, без добавления подписи.</p>
 <div id="assignmentNotice" class="dialog-notice" role="status"></div><div class="dialog-actions"><button id="applyAssignment" class="primary">Применить назначение</button><button id="removeAssignment">Снять назначение</button></div></div></dialog>
-<script src="core.js?v=20261109-repo1"></script><script src="app.js?v=20261109-repo1"></script>
+<script src="core.js?v=20261109-rows1"></script><script src="app.js?v=20261109-rows1"></script>
 </body></html>

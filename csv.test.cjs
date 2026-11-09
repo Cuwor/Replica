@@ -1,0 +1,6 @@
+const assert=require('node:assert/strict'),C=require('./core.js');
+const cues=[{id:'a',start:1123,end:7456,actor:'@Cuwor; Статист м13',text:'Первая, "в кавычках"\nВторая строка'},{id:'b',start:3010,end:9999,actor:'@Cuwor',text:'=1+1'},{id:'c',start:10000,end:10000,actor:'',text:''}];
+const csv='\uFEFF'+C.csv(cues,actor=>actor?'#01a2ff':'#ab1200');const opened=C.openSource(csv,'project.csv');assert.equal(opened.format,'CSV');assert.equal(opened.cues.length,3);for(let i=0;i<cues.length;i++)for(const field of ['start','end','actor','text'])assert.equal(opened.cues[i][field],cues[i][field]);assert.equal(opened.cues[0].color,'#01a2ff');assert.equal(opened.cues[2].color,'#ab1200');assert.equal(C.openSource(C.csv(opened.cues),'again.csv').cues[0].text,cues[0].text);
+const old=C.openSource(C.regions(cues.slice(0,2)),'old_regions.csv');assert.equal(old.cues.length,2);assert.equal(old.cues[0].actor,'');assert.equal(old.cues[0].end,7456);assert.equal(old.cues[1].start,3010);
+const textHeader='Start,End,Actor,Text\r\n00:00:01.001,00:00:07.007,Cuwor,"Текст"\r\n';assert.equal(C.openSource(textHeader,'short.csv').cues[0].actor,'Cuwor');
+console.log('PASS CSV round trip: actors, multiline text, quotes, colors, overlapping and zero-length intervals; legacy region CSV accepted');
