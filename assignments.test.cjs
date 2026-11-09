@@ -1,0 +1,11 @@
+const assert=require('node:assert/strict'),C=require('./core.js'),fs=require('node:fs');
+const doc=C.openSource('00:01 Статист м11: Один\n00:08 Статист м13: Два\n00:15 Статист м7: Три');
+const map=new Map(['Статист м11','Статист м13','Статист м7'].map(name=>[C.actorKey(name),{actor:'@Cuwor',keepCharacter:true}]));
+let cues=C.applyAssignments(doc.cues,map);assert.ok(cues.every(c=>c.actor==='@Cuwor'));assert.equal(cues[1].text,'[Статист м13] Два');assert.equal(doc.cues[1].text,'Два');
+map.set(C.actorKey('Статист м13'),{actor:'Статист м22',keepCharacter:true});cues=C.applyAssignments(doc.cues,map);assert.equal(cues[0].actor,'@Cuwor');assert.equal(cues[1].actor,'Статист м22');assert.equal(cues[2].actor,'@Cuwor');assert.equal(cues[1].text,'[Статист м13] Два');
+map.set(C.actorKey('Статист м13'),{actor:'Статист м23',keepCharacter:false});cues=C.applyAssignments(doc.cues,map);assert.equal(cues[1].text,'Два');assert.equal(cues[1].actor,'Статист м23');assert.deepEqual(cues.map(c=>[c.start,c.end]),doc.cues.map(c=>[c.start,c.end]));
+map.delete(C.actorKey('Статист м13'));assert.equal(C.applyAssignments(doc.cues,map)[1].actor,'Статист м13');
+const ass='[Script Info]\nTitle: Keep\n[V4+ Styles]\nFormat: Name, Fontname\nStyle: Custom,Arial\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:01.23,0:00:07.45,Custom,Статист м13,0,0,0,,{\\i1}Два\nDialogue: 0,0:00:03.01,0:00:09.99,Custom,Статист м7,0,0,0,,Три\n';
+const source=C.parseAss(ass);let edits=C.applyAssignments(source.cues,new Map([[C.actorKey('Статист м13'),{actor:'Статист м21',keepCharacter:true}]]));let out=C.ass(source,edits);assert.ok(out.includes('0:00:01.23,0:00:07.45,Custom,Статист м21,0,0,0,,[Статист м13] {\\i1}Два'));assert.ok(out.includes('Style: Custom,Arial'));assert.ok(out.includes('0:00:03.01,0:00:09.99,Custom,Статист м7'));assert.equal(C.ass(source),ass);
+const both=C.applyAssignments([{id:'a',start:0,end:1000,text:'Together',actor:'@Cuwor; Статист м25'}],new Map([['cuwor',{actor:'Статист м25',keepCharacter:false}]]));assert.equal(both[0].actor,'Статист м25');
+console.log('PASS assignments, reassignments, original fields and timing');
