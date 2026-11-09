@@ -2,6 +2,7 @@ const assert=require('node:assert/strict'),C=require('./core.js');
 const id='13U_RZh9cTNg8zdp99iLQLSnXNiN5L7GJ';
 assert.equal(C.drivePreviewUrl('https://drive.google.com/file/d/'+id+'/view?usp=sharing'),'https://drive.google.com/file/d/'+id+'/preview');
 assert.equal(new URL(C.drivePreviewUrl('https://drive.google.com/file/d/'+id+'/view',60.123)).searchParams.get('t'),'60');
+assert.equal(new URL(C.drivePreviewUrl('https://drive.google.com/file/d/'+id+'/view',60,true)).searchParams.get('autoplay'),'1');
 assert.throws(()=>C.drivePreviewUrl('https://drive.google.com/file/d/'+id+'/view',NaN));
 assert.equal(new URL(C.drivePreviewUrl('https://drive.google.com/file/d/'+id+'/view?resourcekey=0-Test_key')).searchParams.get('resourcekey'),'0-Test_key');
 assert.throws(()=>C.drivePreviewUrl('https://drive.google.com.evil.example/file/d/'+id+'/view'));

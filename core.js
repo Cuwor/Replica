@@ -137,7 +137,7 @@ function driveVideoLink(value){
  if(!id||!/^[-\w]{10,200}$/.test(id))throw new Error('Не удалось найти файл в ссылке Google Drive.');
  return {id,key:url.searchParams.get('resourcekey')};
 }
-function drivePreviewUrl(value,seconds){const {id,key}=driveVideoLink(value);const out=new URL('https://drive.google.com/file/d/'+id+'/preview');if(key&&/^[-\w]{1,200}$/.test(key))out.searchParams.set('resourcekey',key);if(seconds!==undefined){if(!Number.isFinite(seconds)||seconds<0)throw new Error('Неверное время видео.');out.searchParams.set('t',String(Math.floor(seconds)));}return out.href;}
+function drivePreviewUrl(value,seconds,autoplay=false){const {id,key}=driveVideoLink(value);const out=new URL('https://drive.google.com/file/d/'+id+'/preview');if(key&&/^[-\w]{1,200}$/.test(key))out.searchParams.set('resourcekey',key);if(seconds!==undefined){if(!Number.isFinite(seconds)||seconds<0)throw new Error('Неверное время видео.');out.searchParams.set('t',String(Math.floor(seconds)));}if(autoplay)out.searchParams.set('autoplay','1');return out.href;}
 function driveVideoUrl(value,apiKey){
  const {id,key}=driveVideoLink(value);
  if(!apiKey||!/^[-\w]{20,200}$/.test(apiKey.trim()))throw new Error('Введите ключ Google Drive API для подключения видео.');

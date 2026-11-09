@@ -18,9 +18,10 @@ function app(){
  const ids=new Map(),element=id=>{if(!ids.has(id))ids.set(id,new Element());return ids.get(id);},blobs=[];
  const downloads=['downloadAss','downloadSrt','downloadCsv'].map(element);downloads.forEach(b=>b.disabled=true);
  const document={getElementById:element,createElement:tag=>new Element(tag),createDocumentFragment:()=>new Element('fragment'),body:new Element(),querySelector:element,querySelectorAll:s=>s==='.downloads button'?downloads:[]};
- const context={Map,Set,ReplicaCore:C,document,window:{addEventListener(){}},Option:function(text,value){this.textContent=text;this.value=value;},VTTCue:function(start,end,text){Object.assign(this,{startTime:start,endTime:end,text});},Blob,URL:{createObjectURL(blob){blobs.push(blob);return 'blob:test';},revokeObjectURL(){}},console};
+ const clock={now:0},timers=new Map();let timerId=0;
+ const context={Map,Set,ReplicaCore:C,document,performance:{now:()=>clock.now},setInterval(fn){timers.set(++timerId,fn);return timerId;},clearInterval(id){timers.delete(id);},window:{addEventListener(){}},Option:function(text,value){this.textContent=text;this.value=value;},VTTCue:function(start,end,text){Object.assign(this,{startTime:start,endTime:end,text});},Blob,URL:{createObjectURL(blob){blobs.push(blob);return 'blob:test';},revokeObjectURL(){}},console};
  vm.runInNewContext(fs.readFileSync(require.resolve('./app.js'),'utf8'),context);
- return {element,blobs,cues:()=>JSON.parse(element('jsonView').textContent)};
+ return {element,blobs,timers,tick(ms){clock.now+=ms;for(const fn of [...timers.values()])fn();},cues:()=>JSON.parse(element('jsonView').textContent)};
 }
 (async()=>{
  let a=app();a.element('viewEdit').click();a.element('addCue').click();assert.deepEqual(a.cues(),[{start:'00:00:00,000',end:'00:00:04,000',actor:'',text:''}]);assert.equal(a.element('downloadAss').disabled,false);
@@ -29,7 +30,12 @@ function app(){
  a.element('resetTimings').click();assert.equal(a.cues().length,0);a.element('addCue').click();assert.equal(a.cues()[0].start,'00:00:00,000');
  a=app();a.element('videoFile').files=[{name:'Серия.mp4'}];a.element('videoFile').fire('change');assert.equal(a.element('editActions').hidden,false);a.element('player').currentTime=12.345;a.element('addCue').click();assert.equal(a.element('filename').textContent,'Серия.ass');assert.deepEqual(a.cues(),[{start:'00:00:12,345',end:'00:00:16,345',actor:'',text:''}]);
  a.element('videoLink').value='https://drive.google.com/file/d/13U_RZh9cTNg8zdp99iLQLSnXNiN5L7GJ/view';a.element('useReplicaPlayer').checked=true;a.element('driveApiKey').value='test_key_Cuwor_12345678901234567890';a.element('openVideoLink').click();assert.equal(a.element('player').attributes.crossorigin,'anonymous');assert.equal(a.element('player').preload,'metadata');assert.equal(a.cues().length,1);a.element('videoFile').fire('change');assert.equal(a.element('player').attributes.crossorigin,undefined);
- a.element('useReplicaPlayer').checked=false;a.element('openVideoLink').click();assert.equal(a.element('drivePlayer').hidden,false);assert.equal(a.element('player').hidden,true);assert.equal(a.element('player').src,'');assert.equal(a.cues().length,1);a.element('cueList').children[0].fire('click',{target:{matches:()=>false}});assert.equal(new URL(a.element('drivePlayer').src).searchParams.get('t'),'12');a.element('videoFile').fire('change');assert.equal(a.element('drivePlayer').hidden,true);assert.equal(a.element('drivePlayer').src,'');assert.equal(a.element('player').hidden,false);
+ a.element('useReplicaPlayer').checked=false;a.element('openVideoLink').click();assert.equal(a.element('drivePlayer').hidden,false);assert.equal(a.element('player').hidden,true);assert.equal(a.element('player').src,'');assert.equal(a.cues().length,1);a.element('cueList').children[0].fire('click',{target:{matches:()=>false}});assert.equal(new URL(a.element('drivePlayer').src).searchParams.get('t'),'12');
+ let phrase=a.element('cueList').children[0].querySelector('.phrase-input');phrase.value='<b>Текст Beta</b>';phrase.fire('input');
+ a.element('driveCaptionsEnabled').checked=true;a.element('driveCaptionsEnabled').fire('change');a.element('drivePlayer').fire('load');a.tick(500);assert.equal(a.element('driveCaption').textContent,'<b>Текст Beta</b>');assert.equal(a.timers.size,1);
+ a.element('pauseDriveText').click();a.tick(2000);assert.equal(a.element('driveTextClock').textContent,'00:00:12.500');assert.equal(a.timers.size,0);
+ a.element('pauseDriveText').click();a.tick(4000);assert.equal(a.element('driveCaption').hidden,true);a.element('driveTextBack').click();assert.equal(a.element('driveCaption').textContent,'<b>Текст Beta</b>');
+ a.element('videoFile').fire('change');assert.equal(a.element('drivePlayer').hidden,true);assert.equal(a.timers.size,0);assert.equal(a.element('driveCaption').hidden,true);assert.equal(a.element('drivePlayer').src,'');assert.equal(a.element('player').hidden,false);
  const stage=a.element('videoDrop'),viewer=a.element('.viewer'),player=a.element('player');
  for(const [width,height] of [[1920,1080],[1440,1080],[1080,1920]]){
   player.videoWidth=width;player.videoHeight=height;a.element('wideVideo').click();
